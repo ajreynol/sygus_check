@@ -38,9 +38,14 @@ def make_parser():
     p.add_argument("--no-syntactic", action="store_true", help="skip the grammar check")
     p.add_argument("--no-semantic", action="store_true", help="skip the SMT check")
     p.add_argument("--keep-vc", action="store_true",
-                   help="keep the generated verification condition on disk")
+                   help="keep the generated verification condition on disk, as "
+                        "<solution>-vc.smt2 in the working directory")
+    p.add_argument("--vc-out", metavar="FILE", default=None,
+                   help="write the verification condition to FILE ('-' for "
+                        "stdout) and still run the checks")
     p.add_argument("--print-vc", action="store_true",
-                   help="print the verification condition and exit")
+                   help="print the verification condition and exit without "
+                        "running any check")
     p.add_argument("--workdir", default=".", help="where to write temporary files")
     p.add_argument("--no-color", action="store_true")
     p.add_argument("-q", "--quiet", action="store_true",
@@ -71,13 +76,23 @@ def main(argv=None):
         print(semantic.build_smt2(problem, solution, logic=args.logic))
         return EXIT_CORRECT
 
+    if args.vc_out and args.no_semantic:
+        # Nothing else would generate it, so honour the request anyway.
+        smt2 = semantic.build_smt2(problem, solution, logic=args.logic)
+        if args.vc_out == "-":
+            print(smt2)
+        else:
+            with open(args.vc_out, "w") as f:
+                f.write(smt2)
+
     try:
         report = check.run(
             problem, solution,
             do_syntactic=not args.no_syntactic,
             do_semantic=not args.no_semantic,
             solver=args.solver, solver_args=args.solver_arg, logic=args.logic,
-            timeout=args.timeout, workdir=args.workdir, keep=args.keep_vc)
+            timeout=args.timeout, workdir=args.workdir, keep=args.keep_vc,
+            vc_out=args.vc_out)
     except (SygusError, RuntimeError) as e:
         print("error: %s" % e, file=sys.stderr)
         return EXIT_ERROR

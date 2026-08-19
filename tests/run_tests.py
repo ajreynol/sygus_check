@@ -32,6 +32,7 @@ TESTS = [
     ("lin-correct.out",        "lin.sy",  [], "correct"),
     ("lin-bad.out",            "lin.sy",  [], "incorrect"),
     ("strings-correct.out",    "strings.sy", [], "correct"),
+    ("grammar-find.out",       "grammar-find.sy", [], "correct"),
 ]
 
 EXPECTED_EXIT = {"correct": 0, "incorrect": 1, "unknown": 2}
@@ -100,9 +101,59 @@ def unit_tests():
     return ok
 
 
+def option_tests(solver):
+    """The verification condition must be inspectable from the command line."""
+    import tempfile
+
+    ok = True
+
+    def eq(what, got, want):
+        nonlocal ok
+        if got != want:
+            print("FAIL  option %s: got %r, want %r" % (what, got, want))
+            ok = False
+        else:
+            print("PASS  option %s" % what)
+
+    sol = os.path.join(CASES, "max2-correct.out")
+    prob = os.path.join(CASES, "max2.sy")
+    base = [sys.executable, TOOL, "--no-color", "--solver", solver, sol, prob]
+
+    p = subprocess.run(base + ["--print-vc"], capture_output=True, text=True)
+    eq("--print-vc emits a check-sat", "(check-sat)" in p.stdout, True)
+    eq("--print-vc runs no check", "result:" in p.stdout, False)
+
+    with tempfile.TemporaryDirectory() as d:
+        out = os.path.join(d, "vc.smt2")
+        p = subprocess.run(base + ["--vc-out", out], capture_output=True, text=True)
+        eq("--vc-out exit code", p.returncode, 0)
+        eq("--vc-out still checks", "result: correct" in p.stdout, True)
+        eq("--vc-out wrote the file", os.path.exists(out), True)
+        eq("--vc-out content", "(check-sat)" in open(out).read(), True)
+
+        out2 = os.path.join(d, "nosem.smt2")
+        p = subprocess.run(base + ["--no-semantic", "--vc-out", out2],
+                           capture_output=True, text=True)
+        eq("--vc-out with --no-semantic", os.path.exists(out2), True)
+
+        p = subprocess.run(base + ["--keep-vc", "--workdir", d],
+                           capture_output=True, text=True)
+        eq("--keep-vc names after the solution",
+           os.path.exists(os.path.join(d, "max2-correct-vc.smt2")), True)
+
+        # A wrong solution also leaves the counterexample query behind.
+        bad = os.path.join(CASES, "max2-semantic-bad.out")
+        cex = os.path.join(d, "cex.smt2")
+        subprocess.run([sys.executable, TOOL, "--no-color", "--solver", solver,
+                        bad, prob, "--vc-out", cex], capture_output=True, text=True)
+        eq("--vc-out keeps the counterexample query",
+           os.path.exists(os.path.join(d, "cex-cex.smt2")), True)
+    return ok
+
+
 def main():
     solver = os.environ.get("SYGUS_CHECK_SOLVER", "cvc5")
-    ok = unit_tests()
+    ok = unit_tests() and option_tests(solver)
     failed = 0
     for sol, prob, extra, expect in TESTS:
         if not run_case(sol, prob, extra, expect, solver):

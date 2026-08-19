@@ -15,6 +15,7 @@ so ``unsat`` means the solution is correct.
 
 import os
 import subprocess
+import tempfile
 
 from .sexpr import SList, to_str
 
@@ -65,7 +66,11 @@ def build_smt2(problem, solution, logic=None, get_model=False):
             out.append("(assert %s)" % to_str(a))
     out.append("")
     out.append("; --- negation of the constraints ---")
-    if len(goals) == 1:
+    if not goals:
+        out.append("; the problem states no constraints, so the verification")
+        out.append("; condition is trivially valid and its negation is false")
+        out.append("(assert false)")
+    elif len(goals) == 1:
         out.append("(assert (not %s))" % to_str(goals[0]))
     else:
         out.append("(assert (or")
@@ -90,18 +95,54 @@ def run_solver(smt2_path, solver="cvc5", args=(), timeout=None):
     return proc, (proc.stdout or "") + (proc.stderr or "")
 
 
-def check(problem, solution, solver="cvc5", solver_args=(), logic=None,
-          timeout=None, workdir=".", keep=False):
-    """Run the semantic check.  Returns a :class:`SemanticResult`."""
-    goals, _ = problem.expanded_constraints()
-    if not goals:
-        return SemanticResult("vacuous",
-                              ["the problem has no constraints; any well-sorted "
-                               "solution is correct"])
-    smt2 = build_smt2(problem, solution, logic=logic)
-    path = os.path.join(workdir, "sygus-check-vc.smt2")
+def _basename(solution):
+    if not solution.source:
+        return "sygus-check"
+    return os.path.splitext(os.path.basename(solution.source))[0]
+
+
+def _write_vc(smt2, workdir, solution, tag, keep, vc_out=None):
+    """Write *smt2* somewhere the solver can read it.
+
+    Returns ``(path, keep_it)``.  With ``--vc-out`` the caller's path is used
+    directly; with ``--keep-vc`` the file is named after the solution so that
+    checking many benchmarks in one directory does not clobber anything;
+    otherwise a unique temporary file is used and deleted afterwards.
+    """
+    if vc_out and vc_out != "-":
+        if tag == "vc":
+            path = vc_out
+        else:
+            root, ext = os.path.splitext(vc_out)
+            path = "%s-%s%s" % (root, tag, ext or ".smt2")
+        keep = True
+    elif keep:
+        path = os.path.join(workdir, "%s-%s.smt2" % (_basename(solution), tag))
+    else:
+        fd, path = tempfile.mkstemp(prefix="sygus-check-", suffix="-%s.smt2" % tag,
+                                    dir=workdir or None)
+        os.close(fd)
     with open(path, "w") as f:
         f.write(smt2)
+    return path, keep
+
+
+def check(problem, solution, solver="cvc5", solver_args=(), logic=None,
+          timeout=None, workdir=".", keep=False, vc_out=None):
+    """Run the semantic check.  Returns a :class:`SemanticResult`."""
+    goals, _ = problem.expanded_constraints()
+    smt2 = build_smt2(problem, solution, logic=logic)
+    if vc_out == "-":
+        print(smt2)
+    written = None
+    if not goals:
+        if keep or (vc_out and vc_out != "-"):
+            written, _ = _write_vc(smt2, workdir, solution, "vc", keep, vc_out)
+        msgs = ["verification condition: %s" % written] if written else []
+        return SemanticResult("vacuous", msgs +
+                              ["the problem has no constraints; any well-sorted "
+                               "solution is correct"], smt2)
+    path, keep = _write_vc(smt2, workdir, solution, "vc", keep, vc_out)
     proc, output = run_solver(path, solver, solver_args, timeout)
     msgs = ["verification condition: %s" % path] if keep else []
     if proc is None:
@@ -120,7 +161,7 @@ def check(problem, solution, solver="cvc5", solver_args=(), logic=None,
     model = None
     if status == "incorrect":
         model = _counterexample(problem, solution, solver, solver_args, logic,
-                                timeout, workdir)
+                                timeout, workdir, keep, vc_out)
         if model:
             msgs.append("counterexample:")
             msgs.extend("  " + l for l in model.splitlines() if l.strip())
@@ -141,20 +182,19 @@ def _answer(output):
 
 
 def _counterexample(problem, solution, solver, solver_args, logic, timeout,
-                    workdir):
+                    workdir, keep=False, vc_out=None):
     smt2 = build_smt2(problem, solution, logic=logic, get_model=True)
-    path = os.path.join(workdir, "sygus-check-cex.smt2")
-    with open(path, "w") as f:
-        f.write(smt2)
+    path, keep = _write_vc(smt2, workdir, solution, "cex", keep, vc_out)
     try:
         proc, output = run_solver(path, solver, solver_args, timeout)
     except RuntimeError:
         return None
     finally:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+        if not keep:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
     if proc is None:
         return None
     lines = output.splitlines()

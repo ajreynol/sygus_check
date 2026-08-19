@@ -60,8 +60,9 @@ Useful options:
 | `--logic L` | logic for the verification condition (default `ALL`) |
 | `--timeout SEC` | wall-clock limit per solver call |
 | `--no-syntactic`, `--no-semantic` | run only one of the two checks |
-| `--print-vc` | print the generated SMT-LIB file and exit |
-| `--keep-vc` | leave the verification condition on disk |
+| `--print-vc` | print the generated SMT-LIB file to stdout and exit, running no check |
+| `--vc-out FILE` | write the verification condition to `FILE` (`-` for stdout) and still run the checks |
+| `--keep-vc` | leave the verification condition on disk as `<solution>-vc.smt2` in `--workdir` |
 
 ## The verification condition
 
@@ -86,7 +87,23 @@ inv(x) and trans(x,x') => inv(x')
 inv(x)                => post(x)
 ```
 
-Use `--print-vc` to inspect exactly what is sent to the solver.
+Three options expose exactly what is sent to the solver:
+
+```
+$ ./sygus-check --print-vc sol.out prob.sy          # to stdout, run nothing else
+$ ./sygus-check --vc-out vc.smt2 sol.out prob.sy    # to a file, and check as usual
+$ ./sygus-check --keep-vc sol.out prob.sy           # to <solution>-vc.smt2
+```
+
+When the solution is wrong, the follow-up query that produces the
+counterexample is kept too, as `<name>-cex.smt2`; it is the same script plus
+`(set-option :produce-models true)` and `(get-model)`.  Without any of these
+options the query goes to a unique temporary file that is removed afterwards,
+so checking a benchmark set in parallel is safe.
+
+A problem with no constraints yields `(assert false)`, which is the negation of
+the empty conjunction, so the file is always a legal SMT-LIB script you can run
+by hand.
 
 ## The grammar check
 
