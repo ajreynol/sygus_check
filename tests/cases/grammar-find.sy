@@ -1,0 +1,14 @@
+
+(synth-fun f ((x Int)) Bool
+  ((Start Bool) (A Bool) (B Bool) (C Bool) (D Bool))
+  (
+  (Start Bool ((or A A) (or C C) (or B B) (or D D)))
+  (A Bool ((= x 0)))
+  (B Bool ((= x 1) C D))
+  (C Bool ((= x 2)))
+  (D Bool ((= x 3)))
+  )
+)
+
+(constraint (f 1))
+(check-synth)
