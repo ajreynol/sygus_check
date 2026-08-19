@@ -1,0 +1,11 @@
+(set-logic BV)
+(define-sort BV32 () (_ BitVec 32))
+(synth-fun f ((s BV32) (t BV32)) BV32
+  ((Start BV32))
+  ((Start BV32 ((Constant BV32) s t
+                (bvand Start Start) (bvor Start Start) (bvnot Start)
+                (bvadd Start Start) ((_ extract 31 0) Start)))))
+(declare-var s BV32)
+(declare-var t BV32)
+(constraint (= (f s t) (bvor s t)))
+(check-synth)

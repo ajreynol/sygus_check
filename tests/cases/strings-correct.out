@@ -1,0 +1,1 @@
+((define-fun f ((name String)) String (str.substr name 0 (str.indexof name " " 0))))

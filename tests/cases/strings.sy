@@ -1,0 +1,10 @@
+(set-logic SLIA)
+(synth-fun f ((name String)) String
+  ((Start String) (I Int))
+  ((Start String ((Constant String) name
+                  (str.++ Start Start) (str.substr Start I I)))
+   (I Int ((Constant Int) (str.len Start) (str.indexof Start Start I)))))
+(declare-var name String)
+(constraint (= (f "Andrew Reynolds") "Andrew"))
+(constraint (= (f "John Smith") "John"))
+(check-synth)

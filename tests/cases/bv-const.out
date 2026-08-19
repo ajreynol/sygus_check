@@ -1,0 +1,2 @@
+((define-fun f ((s (_ BitVec 32)) (t (_ BitVec 32))) (_ BitVec 32)
+   (bvor (bvand s (bvnot #x00000000)) t)))

@@ -1,0 +1,11 @@
+(set-logic LIA)
+; exercises (Variable Int), (Constant Int) and chain rules A -> B -> A
+(synth-fun lin ((x Int) (y Int)) Int
+  ((Start Int) (Term Int) (Atom Int))
+  ((Start Int (Term (+ Start Start)))
+   (Term Int (Atom (* (Constant Int) Atom)))
+   (Atom Int ((Variable Int) (Constant Int) Start))))
+(declare-var x Int)
+(declare-var y Int)
+(constraint (= (lin x y) (+ (* 2 x) y 1)))
+(check-synth)

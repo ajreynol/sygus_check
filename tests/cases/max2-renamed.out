@@ -1,0 +1,1 @@
+((define-fun max2 ((a Int) (b Int)) Int (ite (<= a b) b a)))

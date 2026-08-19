@@ -1,0 +1,1 @@
+((define-fun lin ((x Int) (y Int)) Int (+ (* x x) (+ y 1))))
