@@ -1,0 +1,9 @@
+; The grammar fixes the arity of every operator: + is strictly binary and
+; - is strictly unary, even though both are variadic in SMT-LIB.
+(set-logic LIA)
+(synth-fun f ((x Int)) Int
+  ((T Int))
+  ((T Int ((+ T T) (- T) 1 x))))
+(declare-var x Int)
+(constraint (= (f x) (+ x 1)))
+(check-synth)

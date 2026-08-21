@@ -33,6 +33,14 @@ TESTS = [
     ("lin-bad.out",            "lin.sy",  [], "incorrect"),
     ("strings-correct.out",    "strings.sy", [], "correct"),
     ("grammar-find.out",       "grammar-find.sy", [], "correct"),
+    # Operator arity is part of the grammar: (+ T T) does not generate a
+    # variadic application such as (+ 1 1 1).
+    ("arity-correct.out",        "arity.sy", [], "correct"),
+    ("arity-nested-correct.out", "arity.sy", [], "correct"),
+    ("arity-plus3.out",          "arity.sy", ["--no-semantic"], "incorrect"),
+    ("arity-plus1.out",          "arity.sy", ["--no-semantic"], "incorrect"),
+    ("arity-minus2.out",         "arity.sy", ["--no-semantic"], "incorrect"),
+    ("arity-nested-bad.out",     "arity.sy", ["--no-semantic"], "incorrect"),
 ]
 
 EXPECTED_EXIT = {"correct": 0, "incorrect": 1, "unknown": 2}
